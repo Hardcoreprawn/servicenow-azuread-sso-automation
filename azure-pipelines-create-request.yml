@@ -1,0 +1,60 @@
+# Azure DevOps Pipeline for Creating New App Requests
+#
+# This pipeline is triggered by ServiceNow or manually to create a new app request in the repo.
+#
+# - Populates the requests/ directory from the template.
+# - Fills in variables from parameters.
+# - Commits and pushes the new request for auditability and safety.
+#
+# Maintainers: Review all scripts and templates for security and test coverage.
+
+# Pipeline: Create New App Request from ServiceNow
+# Triggered by ServiceNow webhook or manual run
+
+trigger: none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+parameters:
+  - name: department
+    displayName: 'Department'
+    type: string
+  - name: application
+    displayName: 'Application'
+    type: string
+  - name: request_id
+    displayName: 'Request ID (e.g. SNOW ticket)'
+    type: string
+  - name: app_name
+    displayName: 'App Name'
+    type: string
+  - name: sign_in_audience
+    displayName: 'Sign-in Audience'
+    type: string
+    default: 'AzureADMyOrg'
+  - name: requester_object_id
+    displayName: 'Requester Object ID'
+    type: string
+  - name: user_object_ids
+    displayName: 'User Object IDs (comma separated)'
+    type: string
+
+steps:
+  - checkout: self
+
+  - script: |
+      set -e
+      DEST="requests/${{ parameters.department }}/${{ parameters.application }}/${{ parameters.request_id }}"
+      mkdir -p "$DEST"
+      cp templates/app_sso/* "$DEST/"
+      sed -i "s|app_name.*|app_name = \"${{ parameters.app_name }}\"|" "$DEST/variables.tf"
+      sed -i "s|sign_in_audience.*|sign_in_audience = \"${{ parameters.sign_in_audience }}\"|" "$DEST/variables.tf"
+      sed -i "s|requester_object_id.*|requester_object_id = \"${{ parameters.requester_object_id }}\"|" "$DEST/variables.tf"
+      sed -i "s|user_object_ids.*|user_object_ids = [${{ parameters.user_object_ids }}]|" "$DEST/variables.tf"
+      git config user.email "pipeline@automation"
+      git config user.name "Pipeline Automation"
+      git add "$DEST"
+      git commit -m "Add new app request: ${{ parameters.department }}/${{ parameters.application }}/${{ parameters.request_id }}"
+      git push
+    displayName: 'Create and Commit New App Request'

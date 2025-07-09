@@ -1,0 +1,37 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+.terraform.lock.hcl
+
+# VS Code
+.vscode/
+
+# Node/npm
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Sensitive files
+.env
+.env.*
+secrets.*
+
+# Misc
+*.bak
+*.swp
+*.swo
+*.tmp

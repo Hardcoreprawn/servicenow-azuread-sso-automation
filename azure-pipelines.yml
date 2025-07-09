@@ -1,0 +1,84 @@
+# Azure DevOps Pipeline for App SSO Request Deployment
+#
+# This pipeline runs Terraform for new/changed requests and updates ServiceNow on completion.
+#
+# - Triggers only on changes in requests/ for safety and auditability.
+# - Iterates over all requests and applies Terraform for each.
+# - Updates the ServiceNow ticket with the result for traceability.
+#
+# Maintainers: Review all scripts and templates for security and test coverage.
+
+trigger:
+  paths:
+    include:
+      - requests/**
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  SERVICENOW_INSTANCE: 'your-instance.service-now.com'
+  SERVICENOW_USER: '$(servicenow_user)'
+  SERVICENOW_PASSWORD: '$(servicenow_password)'
+  SERVICENOW_TICKET: '$(servicenow_ticket)'
+
+stages:
+  - stage: DeployRequest
+    jobs:
+      - job: DeployRequest
+        steps:
+          - checkout: self
+
+          - script: |
+              cd $(Build.SourcesDirectory)/$(Build.SourceVersion)
+              for dir in $(find requests -type d -mindepth 3 -maxdepth 3); do
+                echo "Processing $dir"
+                cd $dir
+                terraform init
+                terraform plan -out=tfplan
+                terraform apply -auto-approve tfplan
+                # Wait and verify resources
+                echo "Verifying Azure AD resources..."
+                APP_ID=$(terraform output -raw application_id || true)
+                OWNERS_GROUP_ID=$(terraform output -raw owners_group_id || true)
+                USERS_GROUP_ID=$(terraform output -raw users_group_id || true)
+                for i in {1..10}; do
+                  # Check if the app exists in Entra (Azure AD)
+                  az ad app show --id "$APP_ID" && \
+                  az ad group show --group "$OWNERS_GROUP_ID" && \
+                  az ad group show --group "$USERS_GROUP_ID" && break
+                  echo "Waiting for resources to stabilise... ($i/10)"
+                  sleep 15
+                done
+                cd -
+              done
+            displayName: 'Terraform Init, Plan, Apply & Verify All Requests'
+
+          - script: |
+              STATUS=$?
+              if [ $STATUS -eq 0 ]; then
+                RESULT="success"
+              else
+                RESULT="failure"
+              fi
+              curl -u "$SERVICENOW_USER:$SERVICENOW_PASSWORD" \
+                -X PATCH "https://$SERVICENOW_INSTANCE/api/now/table/incident/$SERVICENOW_TICKET" \
+                -H "Content-Type: application/json" \
+                -d '{"work_notes": "Terraform deployment $RESULT for ticket $SERVICENOW_TICKET."}'
+            displayName: 'Update ServiceNow Ticket'
+            env:
+              SERVICENOW_USER: $(SERVICENOW_USER)
+              SERVICENOW_PASSWORD: $(SERVICENOW_PASSWORD)
+              SERVICENOW_INSTANCE: $(SERVICENOW_INSTANCE)
+              SERVICENOW_TICKET: $(SERVICENOW_TICKET)
+
+          - script: |
+              COMPLETION_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+              for dir in $(find requests -type d -mindepth 3 -maxdepth 3); do
+                for tf in $dir/*.tf; do
+                  if grep -q 'Completed: <to-be-filled-by-pipeline>' "$tf"; then
+                    sed -i "s|Completed: <to-be-filled-by-pipeline>|Completed: $COMPLETION_TIME|" "$tf"
+                  fi
+                done
+              done
+            displayName: 'Fill Completion Time in Request Metadata'

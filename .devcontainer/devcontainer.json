@@ -1,0 +1,22 @@
+{
+  "name": "Node.js Dev Container",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.shell.linux": "/bin/bash"
+      },
+      "extensions": [
+        "HashiCorp.terraform"
+      ]
+    }
+  },
+  "remoteUser": "root"
+}
