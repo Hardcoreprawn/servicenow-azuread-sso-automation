@@ -62,6 +62,15 @@ This project automates the creation and management of Azure AD Single Sign-On (S
   - Use remote state (e.g., Azure Storage, Terraform Cloud) for production to avoid state drift and enable collaboration.
   - Secure state storage with RBAC and encryption.
 
+## Azure DevOps PAT Management and Usage
+
+- The Azure DevOps Personal Access Token (PAT) is stored in Azure Key Vault as the secret `azdo-pat`.
+- On the very first run, you must provide the PAT as an environment variable (e.g., `TF_VAR_azdo_pat`). Terraform will write it to Key Vault.
+- On all subsequent runs, the provider reads the PAT directly from Key Vault, so any rotation or update is automatically used for all future changes.
+- The PAT is also exposed to Azure DevOps pipelines as the environment variable `TF_VAR_azdo_pat` via the variable group, enabling secure use in scripts and automation.
+- To bootstrap: run Terraform with `TF_VAR_azdo_pat` set, which will store the PAT in Key Vault. After that, you do not need to set the variable again.
+- For PAT rotation, update the Key Vault secret and re-run Terraform or pipelines as needed.
+
 ## Project Structure
 
 ```
