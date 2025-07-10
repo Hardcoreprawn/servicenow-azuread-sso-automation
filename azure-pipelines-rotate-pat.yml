@@ -1,0 +1,37 @@
+trigger: none
+
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+parameters:
+  - name: orgUrl
+    displayName: Azure DevOps Organization URL
+    type: string
+  - name: username
+    displayName: Azure DevOps User (email)
+    type: string
+  - name: keyVaultName
+    displayName: Azure Key Vault Name
+    type: string
+  - name: patSecret
+    displayName: Existing PAT Secret Name
+    type: string
+    default: azdo-pat
+
+steps:
+  - task: AzureKeyVault@2
+    name: FetchPAT
+    inputs:
+      azureSubscription: '$(AZURE_SUBSCRIPTION_SERVICE_CONNECTION)'
+      KeyVaultName: ${{ parameters.keyVaultName }}
+      SecretsFilter: ${{ parameters.patSecret }}
+
+  - script: |
+      set -euo pipefail
+      chmod +x scripts/rotate-azdo-pat.sh
+      ./scripts/rotate-azdo-pat.sh "${{ parameters.orgUrl }}" "${{ parameters.username }}" "$AZDO_PAT" "${{ parameters.keyVaultName }}"
+    displayName: Rotate Azure DevOps PAT
+    env:
+      AZDO_PAT: $(azdo-pat)

@@ -48,6 +48,10 @@ This file records all user requests and actions taken by GitHub Copilot for pers
 - Updated documentation and pipeline examples to use Azure DevOps pipeline resources for referencing the modules repo, supporting a split multi-repo workflow.
 - Removed local modules directory; all modules are now managed in a separate repo and referenced via pipeline resources.
 - Switched Azure DevOps service connection from Service Principal to User Assigned Managed Identity (UAMI) using Workload Identity Federation for improved security and modern Azure best practices.
+- Added private endpoints for both Key Vault and Storage Account, using the private subnet.
+- Reordered resources so that networking (VNet & Subnet) is created before resources that depend on it (Key Vault, Storage Account, and their private endpoints).
+- Updated resource numbering and comments for clarity.
+- All changes are dependency-aware and maintain implicit ordering.
 
 ---
 

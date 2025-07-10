@@ -179,3 +179,11 @@ This project is licensed under the MIT License. See the LICENSE file for details
 - [Azure Storage Account Encryption](https://learn.microsoft.com/en-us/azure/storage/common/storage-service-encryption)
 - [Azure DevOps Agent Pools](https://learn.microsoft.com/en-us/azure/devops/pipelines/agents/pools-queues)
 - [Microsoft Cloud Adoption Framework - Security](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/security/)
+
+## Private Endpoints for Key Vault and Storage Account
+
+This configuration uses private endpoints for both the Azure Key Vault and the Storage Account, ensuring all access is via the private subnet in the VNet. The networking resources (VNet and subnet) are created before any resources that depend on them, such as private endpoints, Key Vault, and Storage Account. This ordering ensures successful deployment and secure, private connectivity.
+
+- The Key Vault and Storage Account both have private endpoints in the same subnet.
+- No explicit Terraform dependencies are required; resource order and references ensure correct creation.
+- See the main.tf for resource grouping and comments.

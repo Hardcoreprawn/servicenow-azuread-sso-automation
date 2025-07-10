@@ -1,0 +1,19 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+packages:
+  - docker.io
+  - unzip
+runcmd:
+  - systemctl enable --now docker
+  - usermod -aG docker $USER
+  - |
+    for i in $(seq 1 ${agent_count}); do
+      docker run -d --restart always \
+        -e AZP_URL="${azdo_url}" \
+        -e AZP_TOKEN="${azdo_pat}" \
+        -e AZP_POOL="${agent_pool}" \
+        -e AZP_AGENT_NAME="${agent_prefix}-${i}" \
+        --name azdo-agent-${i} \
+        mcr.microsoft.com/azure-pipelines/vsts-agent:ubuntu-22.04
+    done
