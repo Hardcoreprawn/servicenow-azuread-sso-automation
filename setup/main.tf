@@ -2,6 +2,23 @@
 # Azure DevOps & Secure Infra Bootstrap (TF)
 ###############################################
 
+terraform {
+  required_providers {
+    azuredevops = {
+      source  = "microsoft/azuredevops"
+      version = "~> 1.10"
+    }
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 4.35"
+    }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 3.4"
+    }
+  }
+}
+
 provider "azurerm" {
   features {}
 }
@@ -115,6 +132,8 @@ resource "azurerm_linux_virtual_machine_scale_set" "agentpool" {
 resource "azuredevops_project" "main" {
   name       = var.azdo_project_name
   visibility = "private"
+  version_control    = "Git"
+  work_item_template = "Agile"
 }
 
 # User Assigned Managed Identity for DevOps Service Connection
@@ -128,16 +147,17 @@ resource "azurerm_user_assigned_identity" "devops" {
 resource "azuredevops_serviceendpoint_azurerm" "main" {
   project_id                = azuredevops_project.main.id
   service_endpoint_name     = "AzureRM-ServiceConnection"
-  azurerm_spn_tenantid      = var.tenant_id
-  azurerm_subscription_id   = var.subscription_id
-  authentication_scheme     = "WorkloadIdentityFederation"
-  azure_rm_workload_identity_federation {
-    client_id               = azurerm_user_assigned_identity.devops.client_id
-    tenant_id               = var.tenant_id
-    subscription_id         = var.subscription_id
-    federated_token         = null # To be configured in pipeline or manually
+  service_endpoint_authentication_scheme = "ManagedServiceIdentity"
+  azurerm_spn_tenantid                   = "00000000-0000-0000-0000-000000000000"
+  azurerm_subscription_id                = "00000000-0000-0000-0000-000000000000"
+  azurerm_subscription_name              = "Example Subscription Name"
+  
+  
+  
+  managed_service_identity {
+    client_id = azurerm_user_assigned_identity.devops.client_id
   }
-  description               = "Service connection for Terraform pipelines using UAMI"
+  description = "Service connection for Terraform pipelines using UAMI"
 }
 
 # Azure DevOps Variable Group (Key Vault-backed)
@@ -167,15 +187,30 @@ resource "azuredevops_git_repository" "modules" {
   }
 }
 
-# Example Pipeline (YAML-based)
-resource "azuredevops_build_definition" "main" {
+# Azure DevOps Pipelines
+resource "azuredevops_build_definition" "create_request" {
   project_id = azuredevops_project.main.id
-  name       = "Process Requests"
-  yaml_path  = "azure-pipelines.yml"
+  name       = "Create Request"
   repository {
     repo_type   = "TfsGit"
     repo_id     = azuredevops_project.main.id
     branch_name = "main"
+    yml_path = "azure-pipelines-create-request.yml"
+  }
+  ci_trigger {
+    use_yaml = true
+  }
+  agent_pool_name = var.agent_pool_name
+}
+
+resource "azuredevops_build_definition" "process_request" {
+  project_id = azuredevops_project.main.id
+  name       = "Process Requests"
+  repository {
+    repo_type   = "TfsGit"
+    repo_id     = azuredevops_project.main.id
+    branch_name = "main"
+    yml_path = "azure-pipelines.yml"
   }
   ci_trigger {
     use_yaml = true
