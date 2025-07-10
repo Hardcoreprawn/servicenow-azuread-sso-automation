@@ -27,7 +27,7 @@ provider "azuread" {}
 
 provider "azuredevops" {
   org_service_url       = var.azdo_org_service_url
-  personal_access_token = var.azdo_pat
+  personal_access_token = azurerm_key_vault_secret.azdo_pat.value
 }
 
 # 1. Resource Group
@@ -156,11 +156,11 @@ resource "azurerm_linux_virtual_machine_scale_set" "agentpool" {
     }
   }
   custom_data = base64encode(templatefile("${path.module}/cloud-init-azdo-agents.yaml", {
-    azdo_url      = var.azdo_org_service_url
-    azdo_pat      = var.azdo_pat
-    agent_pool    = var.agent_pool_name
-    agent_count   = var.agent_count
-    agent_prefix  = var.agent_vmss_name
+    azdo_url     = var.azdo_org_service_url
+    azdo_pat     = var.azdo_pat
+    agent_pool   = var.agent_pool_name
+    agent_count  = var.agent_count
+    agent_prefix = var.agent_vmss_name
   }))
 }
 
@@ -184,8 +184,8 @@ resource "azuredevops_serviceendpoint_azurerm" "main" {
   project_id                             = azuredevops_project.main.id
   service_endpoint_name                  = "AzureRM-ServiceConnection"
   service_endpoint_authentication_scheme = "ManagedServiceIdentity"
-  azurerm_spn_tenantid                   = "00000000-0000-0000-0000-000000000000"
-  azurerm_subscription_id                = "00000000-0000-0000-0000-000000000000"
+  azurerm_spn_tenantid                   = azurerm_key_vault_secret.spn_tenant_id.value
+  azurerm_subscription_id                = azurerm_key_vault_secret.subscription_id.value
   azurerm_subscription_name              = "Example Subscription Name"
   description                            = "Service connection for Terraform pipelines using UAMI"
 }
@@ -196,11 +196,14 @@ resource "azuredevops_variable_group" "kv" {
   name        = "KeyVault-Secrets"
   description = "Secrets from Azure Key Vault for pipelines"
   key_vault {
-    name               = azurerm_key_vault.main.name
+    name                = azurerm_key_vault.main.name
     service_endpoint_id = azuredevops_serviceendpoint_azurerm.main.id
   }
   variable {
-    name  = "TF_VAR_agent_admin_password"
+    name = "TF_VAR_agent_admin_password"
+  }
+  variable {
+    name = "TF_VAR_azdo_pat"
   }
 }
 
@@ -256,5 +259,18 @@ resource "azuredevops_build_definition" "process_request" {
 resource "azurerm_key_vault_secret" "azdo_pat" {
   name         = "azdo-pat"
   value        = var.azdo_pat
+  key_vault_id = azurerm_key_vault.main.id
+}
+
+# 6b. Store AzureRM SPN Tenant ID and Subscription ID in Key Vault
+resource "azurerm_key_vault_secret" "spn_tenant_id" {
+  name         = "azurerm-spn-tenant-id"
+  value        = var.tenant_id
+  key_vault_id = azurerm_key_vault.main.id
+}
+
+resource "azurerm_key_vault_secret" "subscription_id" {
+  name         = "azurerm-subscription-id"
+  value        = var.subscription_id
   key_vault_id = azurerm_key_vault.main.id
 }

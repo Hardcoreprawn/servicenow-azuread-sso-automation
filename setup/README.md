@@ -15,16 +15,7 @@ For overall architecture, design decisions, and security rationale, see the [roo
 
 ## Setup Instructions
 
-### 1. Generate a Personal Access Token (PAT) for Azure DevOps
-- Go to Azure DevOps > User Settings > Personal Access Tokens.
-- Click "New Token".
-- Set the following:
-  - **Organization**: Your Azure DevOps org
-  - **Scopes**: Project & Team (Read/Write), Code (Read/Write), Service Connections (Read/Write), Variable Groups (Read/Write), Agent Pools (Read/Write)
-  - **Expiration**: As appropriate for your security policy
-- Copy the PAT and store it securely. **Do not put the PAT in your tfvars file or commit it to version control.**
-
-### 2. Prepare Your Setup Variables
+### 1. Prepare Your Setup Variables
 - Copy the example below into a file named `setup.auto.tfvars` (or any `.tfvars` file):
 
 ```hcl
@@ -50,35 +41,51 @@ modules_repo_name         = "terraform-azure-modules"
 ```
 
 - **Never commit your secrets to version control.**
-- The PAT should be provided as an environment variable at runtime.
+- The Azure DevOps PAT is **not** set in this file. It is handled securely as described below.
 
-### 3. Set the PAT as an Environment Variable
+### 2. Generate and Store the Azure DevOps PAT
+- In Azure DevOps, go to User Settings > Personal Access Tokens and create a new PAT scoped to your organization, but limited to the specific project where automation will run. Grant only the following permissions:
+  - **Project & Team (Read/Write)** (for the project)
+  - **Service Connections (Read/Write)** (for the project)
+  - **Variable Groups (Read/Write)** (for the project)
+  - **Agent Pools (Read/Write)** (for the project)
+  - **Code (Read/Write)** (for the project, but restrict to only the repos that require write access; set to Read for repos that only need to be read)
 
-Before running Terraform, set your PAT in your shell:
+  When configuring the PAT, select the project scope and, for the Code scope, specify Read/Write for the automated-deployment repo and Read for the modules repo. This ensures least-privilege access.
+- **Do not put the PAT in any tfvars file or commit it to version control.**
 
-```bash
-export AZDO_PERSONAL_ACCESS_TOKEN="<your-pat-here>"
-```
+#### Bootstrap the Key Vault for PAT Storage
+1. Deploy the core infrastructure (resource group, Key Vault, VNet, subnet, etc.) so Key Vault is available:
+   ```sh
+   terraform apply -target=azurerm_resource_group.main -target=azurerm_key_vault.main -target=azurerm_virtual_network.main -target=azurerm_subnet.private
+   ```
+2. Store the PAT in Key Vault as the secret `azdo-pat`:
+   ```sh
+   az keyvault secret set --vault-name <key_vault_name> --name azdo-pat --value <your_pat>
+   ```
 
-Or, if you use a different shell or CI/CD system, set the environment variable accordingly.
+### 3. Complete the Deployment
+- Run `terraform apply` again (with your normal variable file) to complete the deployment. All DevOps resources and automation will now use the PAT securely from Key Vault.
+- For future PAT rotation, update the Key Vault secret and re-run Terraform or trigger the provided rotation pipeline/script as needed. See `scripts/rotate-azdo-pat.sh` and `azure-pipelines-rotate-pat.yml` for automated rotation.
 
-### 4. Run the Bootstrap Script
-
-```bash
-cd setup
-terraform init
-terraform apply -var-file=setup.auto.tfvars
-```
-
-Or, if using the provided script:
+### 4. (Optional) Use the Bootstrap Script
+- You can use the provided script to automate the above steps:
 
 ```bash
 cd setup
 AZDO_PERSONAL_ACCESS_TOKEN="<your-pat-here>" ./bootstrap_setup.sh -var-file=setup.auto.tfvars
 ```
 
-### 5. Next Steps
-- Review the outputs for resource details and next steps (e.g., agent registration, manual approvals).
+## ITSM Integration: Sending Requests
+
+This solution abstracts ITSM integration (e.g., ServiceNow) for flexibility. To configure your ITSM tool to send requests:
+- Review the ITSM integration abstraction in the `/src/servicenow/` directory.
+- Update or replace the integration script or pipeline step to match your ITSM system's API and authentication.
+- Example request payloads and scripts are provided in the `scripts/` directory.
+- For more details, see the main project README and comments in the ITSM integration code.
+
+## Next Steps
+- Review Terraform outputs for resource details and next steps (e.g., agent registration, manual approvals).
 - Configure your Azure DevOps pipelines to use the created resources and reference the modules repo as described in the main README.
 
 ## Files
@@ -91,3 +98,4 @@ AZDO_PERSONAL_ACCESS_TOKEN="<your-pat-here>" ./bootstrap_setup.sh -var-file=setu
 **Note:**
 - You must have sufficient Azure and Azure DevOps permissions to run this setup.
 - Review and update variables as needed for your environment.
+- Follow security best practices for all credentials and secrets.

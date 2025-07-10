@@ -13,7 +13,7 @@ runcmd:
         -e AZP_URL="${azdo_url}" \
         -e AZP_TOKEN="${azdo_pat}" \
         -e AZP_POOL="${agent_pool}" \
-        -e AZP_AGENT_NAME="${agent_prefix}-${i}" \
-        --name azdo-agent-${i} \
+        -e AZP_AGENT_NAME="${agent_prefix}-$i" \
+        --name azdo-agent-$i \
         mcr.microsoft.com/azure-pipelines/vsts-agent:ubuntu-22.04
     done

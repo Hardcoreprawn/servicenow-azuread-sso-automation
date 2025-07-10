@@ -11,10 +11,14 @@ cd "$(dirname "$0")"
 # export ARM_CLIENT_SECRET=...
 # export ARM_SUBSCRIPTION_ID=...
 # export ARM_TENANT_ID=...
-# export AZDO_PERSONAL_ACCESS_TOKEN=...
 # export AZDO_ORG_SERVICE_URL=...
+#
+# On the first run, you must provide the Azure DevOps PAT as an environment variable:
+# export TF_VAR_azdo_pat=...   # (PAT will be written to Key Vault)
+#
+# On subsequent runs, you do NOT need to set TF_VAR_azdo_pat; it will be read from Key Vault.
 
 terraform init
 terraform apply -auto-approve
 
-echo "\n[INFO] Setup complete. Review outputs above for next steps."
+echo -e "\n[INFO] Setup complete. Review outputs above for next steps."
