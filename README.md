@@ -196,3 +196,54 @@ This configuration uses private endpoints for both the Azure Key Vault and the S
 - The Key Vault and Storage Account both have private endpoints in the same subnet.
 - No explicit Terraform dependencies are required; resource order and references ensure correct creation.
 - See the main.tf for resource grouping and comments.
+
+## Devcontainer: Automatic Azure DevOps PAT Loading
+
+> **New:** The devcontainer now automatically loads the Azure DevOps PAT from Azure Key Vault at startup, making onboarding and local development seamless. See `setup/README.md` for details on how this works and how to configure the Key Vault name.
+
+## Architecture Overview (C4 Model)
+
+> **Note:** Azure DevOps and standard Mermaid do not support C4-PlantUML syntax. The following diagrams use Mermaid flowcharts to represent C4 Context and Container levels.
+
+### C4 Context Diagram
+```mermaid
+flowchart TD
+  User[User - ServiceNow ITSM]
+  ServiceNow[ServiceNow]
+  AzureDevOps[Azure DevOps]
+  Azure[Azure]
+  KeyVault[Azure Key Vault]
+  Storage[Azure Storage Account]
+
+  User -->|Creates SSO request| ServiceNow
+  ServiceNow -->|Triggers pipeline| AzureDevOps
+  AzureDevOps -->|Provisions resources| Azure
+  AzureDevOps -->|Reads/writes secrets| KeyVault
+  AzureDevOps -->|Stores Terraform state| Storage
+  Azure -->|Uses secrets| KeyVault
+```
+
+### C4 Container Diagram
+```mermaid
+flowchart TD
+  User[User]
+  Web[VS Code Devcontainer]
+  CLI[Scripts/CLI]
+  Pipeline[Azure DevOps Pipeline]
+  TF[Terraform]
+  AKV[Azure Key Vault]
+  Storage[Storage Account]
+  Azure[Azure Resources]
+
+  User --> Web
+  User --> CLI
+  Web --> TF
+  CLI --> TF
+  TF --> AKV
+  TF --> Storage
+  TF --> Azure
+  Pipeline --> TF
+  Pipeline --> AKV
+  Pipeline --> Storage
+  Pipeline --> Azure
+```

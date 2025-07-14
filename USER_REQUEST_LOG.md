@@ -1,4 +1,3 @@
-
 # User Request Log
 
 This file records all user requests and actions taken by GitHub Copilot for persistent context and traceability.
@@ -82,6 +81,14 @@ This file records all user requests and actions taken by GitHub Copilot for pers
 - User requested to update the persistent log in the background after recent changes to the Terraform infrastructure code.
 - No new infrastructure changes were made in this request; this is a meta/logging update only.
 - All previous changes (dynamic client IP allow-listing, provider block cleanup, variable removal, role assignments, etc.) are up to date as of this entry.
+
+---
+
+**2025-07-14**
+- Added automation to set `AZDO_PERSONAL_ACCESS_TOKEN` from Azure Key Vault on devcontainer start.
+- Script now extracts `key_vault_name` from `setup.auto.tfvars` or environment variable for flexibility.
+- Updated `.devcontainer/devcontainer.json` to run this script automatically.
+- Design decision: Always prefer tfvars for vault name, fallback to env, and fail with clear error if not set.
 
 ---
 

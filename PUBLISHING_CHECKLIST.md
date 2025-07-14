@@ -18,6 +18,7 @@ Before making this repository public, ensure the following:
 ## 4. Code & Scripts
 - [ ] No hardcoded resource group names, subscription IDs, or other sensitive Azure details.
 - [ ] All scripts are generic and do not expose internal-only information.
+- [ ] No secrets or sensitive values in devcontainer config or scripts; all secret loading is dynamic from Key Vault at runtime.
 
 ## 5. Repo Hygiene
 - [ ] No old branches, tags, or files with sensitive data in their history.

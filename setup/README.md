@@ -76,6 +76,19 @@ cd setup
 AZDO_PERSONAL_ACCESS_TOKEN="<your-pat-here>" ./bootstrap_setup.sh -var-file=setup.auto.tfvars
 ```
 
+---
+
+## Devcontainer: Automatic Azure DevOps PAT Loading
+
+When using the devcontainer, the `AZDO_PERSONAL_ACCESS_TOKEN` environment variable is automatically set at container startup by reading the secret from Azure Key Vault. The script `setup/set_azdo_pat_env.sh` will:
+- Extract the Key Vault name from `setup.auto.tfvars` (or from the `KEY_VAULT_NAME_ENV` environment variable if not set in tfvars).
+- Retrieve the `azdo-pat` secret from the Key Vault.
+- Export it as `AZDO_PERSONAL_ACCESS_TOKEN` for all shell sessions.
+
+If the Key Vault name is not found, the script will fail with a clear error message. You can override the tfvars file used by setting the `TFVARS_FILE` environment variable before starting the container.
+
+This ensures all automation and scripts in the devcontainer have secure, up-to-date access to the Azure DevOps PAT without manual intervention.
+
 ## ITSM Integration: Sending Requests
 
 This solution abstracts ITSM integration (e.g., ServiceNow) for flexibility. To configure your ITSM tool to send requests:
@@ -103,3 +116,25 @@ This solution abstracts ITSM integration (e.g., ServiceNow) for flexibility. To 
 # Changes
 - The bootstrap process now automatically grants the current user running Terraform the Key Vault Administrator role on the Key Vault, ensuring you have the necessary permissions for secret management during initial deployment. This prevents 403 errors and allows the deployment to proceed smoothly.
 - All variables and automation are now aligned for managed identity and auto-generated password best practices.
+
+## Setup Flow Diagram
+
+```mermaid
+flowchart TD
+  SNOW[ServiceNow Ticket];
+  PIPE[Azure DevOps Pipeline];
+  AKV[Azure Key Vault];
+  TFSTATE[Storage Account];
+  VNET[Private VNet/Subnet];
+  AGENT[Self-hosted Agent Pool];
+  AZURE[Azure Resources];
+
+  SNOW-->|"Request triggers"|PIPE;
+  PIPE-->|"Reads PAT from"|AKV;
+  PIPE-->|"Stores state in"|TFSTATE;
+  PIPE-->|"Runs on"|AGENT;
+  AGENT-->|"Private network only"|VNET;
+  PIPE-->|"Provisions"|AZURE;
+  AKV-->|"Private endpoint, RBAC, CMK"|VNET;
+  TFSTATE-->|"Private endpoint, CMK"|VNET;
+```

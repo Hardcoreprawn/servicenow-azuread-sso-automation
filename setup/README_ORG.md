@@ -31,3 +31,9 @@
 1. Edit variables in `variables.tf` as needed.
 2. Run `terraform init` and `terraform apply` in the `setup` directory.
 3. Review outputs in `outputs.tf` for integration points.
+
+---
+
+## Devcontainer PAT Automation
+
+The devcontainer automatically loads the Azure DevOps PAT from Azure Key Vault at startup for all local development sessions. If you change the Key Vault secret name or the tfvars file, update `setup/set_azdo_pat_env.sh` accordingly.

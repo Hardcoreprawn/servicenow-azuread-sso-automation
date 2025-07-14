@@ -18,5 +18,6 @@
   },
   "remoteUser": "root",
   "runArgs": [
-  ]
+  ],
+  "postStartCommand": "/bin/bash setup/set_azdo_pat_env.sh"
 }
