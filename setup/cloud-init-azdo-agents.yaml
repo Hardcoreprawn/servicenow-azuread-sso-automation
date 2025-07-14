@@ -17,3 +17,4 @@ runcmd:
         --name azdo-agent-$i \
         mcr.microsoft.com/azure-pipelines/vsts-agent:ubuntu-22.04
     done
+# increment 1

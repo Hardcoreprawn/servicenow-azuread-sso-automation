@@ -51,16 +51,16 @@ variable "agent_admin_username" {
   type        = string
 }
 
-variable "agent_admin_password" {
-  description = "Admin password for agent VMs (set via env var)"
-  type        = string
-  sensitive   = true
-}
-
 variable "agent_count" {
   description = "Number of Azure DevOps agent containers to run on the VMSS instance."
   type        = number
   default     = 3
+}
+
+variable "agent_pool_name" {
+  description = "Azure DevOps Agent Pool Name"
+  type        = string
+  default     = "azdo-ap-avm-agent-pool"
 }
 
 # 6. User Assigned Managed Identity
@@ -74,27 +74,10 @@ variable "subscription_id" {
   type        = string
 }
 
-variable "client_id" {
-  description = "Azure Service Principal Client ID"
-  type        = string
-}
-
-variable "client_secret" {
-  description = "Azure Service Principal Client Secret (set via env var)"
-  type        = string
-  sensitive   = true
-}
-
 # 7. Azure DevOps Project & Auth
 variable "azdo_org_service_url" {
   description = "Azure DevOps organization URL (e.g. https://dev.azure.com/yourorg)"
   type        = string
-}
-
-variable "azdo_pat" {
-  description = "Azure DevOps Personal Access Token (set via env var)"
-  type        = string
-  sensitive   = true
 }
 
 variable "azdo_project_name" {
@@ -102,11 +85,6 @@ variable "azdo_project_name" {
   type        = string
 }
 
-# 8. Azure DevOps Agent Pool
-variable "agent_pool_name" {
-  description = "Azure DevOps Agent Pool Name"
-  type        = string
-}
 
 # 9. Azure DevOps Git Repos
 variable "vending_machine_repo_name" {

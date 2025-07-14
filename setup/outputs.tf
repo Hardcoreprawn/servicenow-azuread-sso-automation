@@ -10,11 +10,6 @@ output "storage_account_blob_endpoint" {
   value       = azurerm_storage_account.tfstate.primary_blob_endpoint
 }
 
-output "agent_pool_name" {
-  description = "Name of the Azure DevOps self-hosted agent pool"
-  value       = var.agent_pool_name
-}
-
 output "devops_project_id" {
   description = "Azure DevOps Project ID"
   value       = azuredevops_project.main.id
@@ -23,9 +18,4 @@ output "devops_project_id" {
 output "service_connection_id" {
   description = "Azure DevOps Service Connection ID"
   value       = azuredevops_serviceendpoint_azurerm.main.id
-}
-
-output "variable_group_id" {
-  description = "Azure DevOps Variable Group ID (Key Vault-backed)"
-  value       = azuredevops_variable_group.kv.id
 }

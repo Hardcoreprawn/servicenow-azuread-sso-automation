@@ -99,3 +99,7 @@ This solution abstracts ITSM integration (e.g., ServiceNow) for flexibility. To 
 - You must have sufficient Azure and Azure DevOps permissions to run this setup.
 - Review and update variables as needed for your environment.
 - Follow security best practices for all credentials and secrets.
+
+# Changes
+- The bootstrap process now automatically grants the current user running Terraform the Key Vault Administrator role on the Key Vault, ensuring you have the necessary permissions for secret management during initial deployment. This prevents 403 errors and allows the deployment to proceed smoothly.
+- All variables and automation are now aligned for managed identity and auto-generated password best practices.

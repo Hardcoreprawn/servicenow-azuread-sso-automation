@@ -2,48 +2,19 @@
 # Azure DevOps & Secure Infra Bootstrap (TF)
 ###############################################
 
-terraform {
-  required_providers {
-    azuredevops = {
-      source  = "microsoft/azuredevops"
-      version = "~> 1.10"
-    }
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 4.35"
-    }
-    azuread = {
-      source  = "hashicorp/azuread"
-      version = "~> 3.4"
-    }
-  }
-}
-
-provider "azurerm" {
-  features {}
-}
-
-provider "azuread" {}
-
-provider "azuredevops" {
-  org_service_url       = var.azdo_org_service_url
-  personal_access_token = azurerm_key_vault_secret.azdo_pat.value
-}
-
-# 1. Resource Group
+# -----------------------------------------------------------------------------
+# 1. Resource Group & Networking
+# -----------------------------------------------------------------------------
 resource "azurerm_resource_group" "main" {
   name     = var.resource_group_name
   location = var.location
 }
-
-# 2. Networking (VNet & Subnet)
 resource "azurerm_virtual_network" "main" {
   name                = var.vnet_name
   address_space       = [var.vnet_address_space]
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
 }
-
 resource "azurerm_subnet" "private" {
   name                 = "private"
   resource_group_name  = azurerm_resource_group.main.name
@@ -51,7 +22,9 @@ resource "azurerm_subnet" "private" {
   address_prefixes     = [var.subnet_address_prefix]
 }
 
-# 3. Key Vault and Key
+# -----------------------------------------------------------------------------
+# 2. Key Vault, Key, Private Endpoint, and Role Assignments
+# -----------------------------------------------------------------------------
 resource "azurerm_key_vault" "main" {
   name                       = var.key_vault_name
   location                   = azurerm_resource_group.main.location
@@ -64,9 +37,22 @@ resource "azurerm_key_vault" "main" {
   network_acls {
     default_action = "Deny"
     bypass         = "AzureServices"
+    ip_rules = [
+      data.external.client_ip.result.ip,
+      # Azure DevOps UK South agent IPs as of July 2025 (source: MSFT public doc)
+      "20.49.208.0/20",
+      "51.140.190.0/23",
+      "51.140.192.0/20",
+      "51.140.208.0/21",
+      "51.140.216.0/22",
+      "51.140.220.0/23",
+      "51.140.222.0/24",
+      "51.140.223.0/24",
+      # Directly observed Azure DevOps agent IP
+      "40.74.28.19"
+    ]
   }
 }
-
 resource "azurerm_key_vault_key" "cmk" {
   name         = "tfstate-cmk"
   key_vault_id = azurerm_key_vault.main.id
@@ -74,14 +60,11 @@ resource "azurerm_key_vault_key" "cmk" {
   key_size     = 2048
   key_opts     = ["decrypt", "encrypt", "sign", "verify", "wrapKey", "unwrapKey"]
 }
-
-# 3b. Private Endpoint for Key Vault
 resource "azurerm_private_endpoint" "keyvault" {
   name                = "keyvault-pe"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   subnet_id           = azurerm_subnet.private.id
-
   private_service_connection {
     name                           = "keyvault-pe-connection"
     private_connection_resource_id = azurerm_key_vault.main.id
@@ -89,8 +72,41 @@ resource "azurerm_private_endpoint" "keyvault" {
     subresource_names              = ["vault"]
   }
 }
+# Key Vault Role Assignments
+resource "azurerm_role_assignment" "bootstrap_kv_secrets_officer" {
+  scope                = azurerm_key_vault.main.id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+resource "azurerm_role_assignment" "bootstrap_kv_certificate_officer" {
+  scope                = azurerm_key_vault.main.id
+  role_definition_name = "Key Vault Certificates Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+resource "azurerm_role_assignment" "bootstrap_kv_crypto_officer" {
+  scope                = azurerm_key_vault.main.id
+  role_definition_name = "Key Vault Crypto Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+resource "azurerm_role_assignment" "uami_keyvault" {
+  scope                = azurerm_key_vault.main.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azurerm_user_assigned_identity.devops.principal_id
+}
+resource "azurerm_role_assignment" "storage_cmk_kv_crypto_officer" {
+  scope                = azurerm_key_vault.main.id
+  role_definition_name = "Key Vault Crypto Officer"
+  principal_id         = azurerm_user_assigned_identity.storage_cmk.principal_id
+}
 
-# 4. Storage Account (for Terraform State)
+# -----------------------------------------------------------------------------
+# 3. Storage Account, UAMI, Private Endpoint, and Role Assignments
+# -----------------------------------------------------------------------------
+resource "azurerm_user_assigned_identity" "storage_cmk" {
+  name                = "devops-uami"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+}
 resource "azurerm_storage_account" "tfstate" {
   name                     = var.storage_account_name
   resource_group_name      = azurerm_resource_group.main.name
@@ -103,21 +119,19 @@ resource "azurerm_storage_account" "tfstate" {
     bypass         = ["AzureServices"]
   }
   identity {
-    type = "SystemAssigned"
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.storage_cmk.id]
   }
   customer_managed_key {
     key_vault_key_id          = azurerm_key_vault_key.cmk.id
-    user_assigned_identity_id = null # Uses system-assigned identity
+    user_assigned_identity_id = azurerm_user_assigned_identity.storage_cmk.id
   }
 }
-
-# 4b. Private Endpoint for Storage Account
 resource "azurerm_private_endpoint" "tfstate" {
   name                = "tfstate-pe"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   subnet_id           = azurerm_subnet.private.id
-
   private_service_connection {
     name                           = "tfstate-pe-connection"
     private_connection_resource_id = azurerm_storage_account.tfstate.id
@@ -125,8 +139,24 @@ resource "azurerm_private_endpoint" "tfstate" {
     subresource_names              = ["blob"]
   }
 }
+resource "azurerm_role_assignment" "uami_storage" {
+  scope                = azurerm_storage_account.tfstate.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.devops.principal_id
+}
 
-# 5. Compute (VMSS for Agents)
+# -----------------------------------------------------------------------------
+# 4. VMSS, admin password, UAMI for DevOps
+# -----------------------------------------------------------------------------
+resource "random_password" "agent_admin" {
+  length  = 24
+  special = true
+}
+resource "azurerm_key_vault_secret" "agent_admin_password" {
+  name         = "agent-admin-password"
+  value        = random_password.agent_admin.result
+  key_vault_id = azurerm_key_vault.main.id
+}
 resource "azurerm_linux_virtual_machine_scale_set" "agentpool" {
   name                            = var.agent_vmss_name
   resource_group_name             = azurerm_resource_group.main.name
@@ -134,12 +164,12 @@ resource "azurerm_linux_virtual_machine_scale_set" "agentpool" {
   sku                             = "Standard_DS2_v2"
   instances                       = 1
   admin_username                  = var.agent_admin_username
-  admin_password                  = var.agent_admin_password
+  admin_password                  = random_password.agent_admin.result
   disable_password_authentication = false
   source_image_reference {
     publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-noble"
-    sku       = "24_04-lts"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
     version   = "latest"
   }
   os_disk {
@@ -157,21 +187,21 @@ resource "azurerm_linux_virtual_machine_scale_set" "agentpool" {
   }
   custom_data = base64encode(templatefile("${path.module}/cloud-init-azdo-agents.yaml", {
     azdo_url     = var.azdo_org_service_url
-    azdo_pat     = var.azdo_pat
+    azdo_pat     = azurerm_key_vault_secret.azdo_pat.value
     agent_pool   = var.agent_pool_name
     agent_count  = var.agent_count
     agent_prefix = var.agent_vmss_name
   }))
 }
-
-# 6. User Assigned Managed Identity (for DevOps Service Connection)
 resource "azurerm_user_assigned_identity" "devops" {
   name                = "devops-uami"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
 }
 
-# 7. Azure DevOps Project
+# -----------------------------------------------------------------------------
+# 5. Azure DevOps Project, Agent Pool, Service Connection, Variable Group, Repos, Pipelines, and Key Vault Secrets
+# -----------------------------------------------------------------------------
 resource "azuredevops_project" "main" {
   name               = var.azdo_project_name
   visibility         = "private"
@@ -179,7 +209,6 @@ resource "azuredevops_project" "main" {
   work_item_template = "Agile"
 }
 
-# 8. Azure DevOps Service Connection (AzureRM, UAMI)
 resource "azuredevops_serviceendpoint_azurerm" "main" {
   project_id                             = azuredevops_project.main.id
   service_endpoint_name                  = "AzureRM-ServiceConnection"
@@ -190,24 +219,6 @@ resource "azuredevops_serviceendpoint_azurerm" "main" {
   description                            = "Service connection for Terraform pipelines using UAMI"
 }
 
-# 9. Azure DevOps Variable Group (Key Vault-backed)
-resource "azuredevops_variable_group" "kv" {
-  project_id  = azuredevops_project.main.id
-  name        = "KeyVault-Secrets"
-  description = "Secrets from Azure Key Vault for pipelines"
-  key_vault {
-    name                = azurerm_key_vault.main.name
-    service_endpoint_id = azuredevops_serviceendpoint_azurerm.main.id
-  }
-  variable {
-    name = "TF_VAR_agent_admin_password"
-  }
-  variable {
-    name = "TF_VAR_azdo_pat"
-  }
-}
-
-# 10. Azure DevOps Git Repos
 resource "azuredevops_git_repository" "vending_machine" {
   project_id = azuredevops_project.main.id
   name       = var.vending_machine_repo_name
@@ -215,7 +226,6 @@ resource "azuredevops_git_repository" "vending_machine" {
     init_type = "Clean"
   }
 }
-
 resource "azuredevops_git_repository" "modules" {
   project_id = azuredevops_project.main.id
   name       = var.modules_repo_name
@@ -223,46 +233,49 @@ resource "azuredevops_git_repository" "modules" {
     init_type = "Clean"
   }
 }
-
-# 11. Azure DevOps Pipelines
 resource "azuredevops_build_definition" "create_request" {
   project_id = azuredevops_project.main.id
   name       = "Create Request"
   repository {
     repo_type   = "TfsGit"
-    repo_id     = azuredevops_project.main.id
+    repo_id     = azuredevops_git_repository.vending_machine.id
     branch_name = "main"
     yml_path    = "azure-pipelines-create-request.yml"
   }
   ci_trigger {
     use_yaml = true
   }
-  agent_pool_name = var.agent_pool_name
 }
-
 resource "azuredevops_build_definition" "process_request" {
   project_id = azuredevops_project.main.id
   name       = "Process Requests"
   repository {
     repo_type   = "TfsGit"
-    repo_id     = azuredevops_project.main.id
+    repo_id     = azuredevops_git_repository.vending_machine.id
     branch_name = "main"
     yml_path    = "azure-pipelines.yml"
   }
   ci_trigger {
     use_yaml = true
   }
-  agent_pool_name = var.agent_pool_name
 }
 
-# 12. Store Azure DevOps PAT in Key Vault
+# -----------------------------------------------------------------------------
+# 6. Key Vault Secrets for DevOps (PAT, Tenant ID, Subscription ID)
+# -----------------------------------------------------------------------------
 resource "azurerm_key_vault_secret" "azdo_pat" {
-  name         = "azdo-pat"
-  value        = var.azdo_pat
-  key_vault_id = azurerm_key_vault.main.id
+  name            = "azdo-pat"
+  key_vault_id    = azurerm_key_vault.main.id
+  not_before_date = timestamp()
+  expiration_date = timeadd(timestamp(), "744h") # 31 days
+  value = "" # PAT will be set manually in Key Vault
+  lifecycle {
+    ignore_changes = [
+      value, # PAT will be set manually in Key Vault
+    ]
+  }
 }
 
-# 6b. Store AzureRM SPN Tenant ID and Subscription ID in Key Vault
 resource "azurerm_key_vault_secret" "spn_tenant_id" {
   name         = "azurerm-spn-tenant-id"
   value        = var.tenant_id
@@ -274,3 +287,4 @@ resource "azurerm_key_vault_secret" "subscription_id" {
   value        = var.subscription_id
   key_vault_id = azurerm_key_vault.main.id
 }
+

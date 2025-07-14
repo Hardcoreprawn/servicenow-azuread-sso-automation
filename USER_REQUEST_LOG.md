@@ -1,3 +1,4 @@
+
 # User Request Log
 
 This file records all user requests and actions taken by GitHub Copilot for persistent context and traceability.
@@ -52,6 +53,35 @@ This file records all user requests and actions taken by GitHub Copilot for pers
 - Reordered resources so that networking (VNet & Subnet) is created before resources that depend on it (Key Vault, Storage Account, and their private endpoints).
 - Updated resource numbering and comments for clarity.
 - All changes are dependency-aware and maintain implicit ordering.
+- Added a bootstrap Key Vault Administrator role assignment for the current user running Terraform, ensuring initial management permissions and preventing 403 errors during deployment. **Note:** The Key Vault Administrator role does not grant access to read or manage secrets; for secret access, assign the Key Vault Secrets User or Key Vault Secrets Officer role as appropriate.
+- Cleaned up variables and configuration to match managed identity and auto-generated password best practices.
+
+---
+
+**2025-07-10**
+- Updated VMSS agent pool image to use Ubuntu 22.04 LTS (`0001-com-ubuntu-server-jammy`, `22_04-lts`) for maximum compatibility and stability. Noted that Ubuntu 24.04 LTS is not yet available in Azure Marketplace for VMSS as of this date.
+
+---
+
+**2025-07-11**
+- User requested to implement a dedicated user-assigned managed identity for the storage account to access the CMK in Key Vault, and to assign the required Key Vault role.
+- Design decision: Created `azurerm_user_assigned_identity.storage_cmk` for the storage account, assigned it the `Key Vault Crypto Officer` role, and updated the storage account to use this UAMI for CMK.
+- Noted that key rotation is not automated in this implementation, but the UAMI is ready for future automation.
+
+---
+
+- Refactored Terraform codebase for clarity and maintainability:
+  - Moved provider and terraform blocks to `providers.tf`.
+  - Moved data sources to `data.tf`.
+  - Split resources into logical files: `infra_network.tf`, `infra_keyvault.tf`, `infra_storage.tf`, `infra_vmss.tf`, `infra_identities.tf`, `infra_role_assignments.tf`, `infra_bootstrap_roles.tf`, `infra_azdo.tf`.
+  - Updated documentation with new file structure and organization principles.
+- All resources are now grouped with their enablers, children, and role assignments for easier navigation and maintenance.
+
+---
+
+- User requested to update the persistent log in the background after recent changes to the Terraform infrastructure code.
+- No new infrastructure changes were made in this request; this is a meta/logging update only.
+- All previous changes (dynamic client IP allow-listing, provider block cleanup, variable removal, role assignments, etc.) are up to date as of this entry.
 
 ---
 

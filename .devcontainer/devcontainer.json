@@ -16,5 +16,7 @@
       ]
     }
   },
-  "remoteUser": "root"
+  "remoteUser": "root",
+  "runArgs": [
+  ]
 }
