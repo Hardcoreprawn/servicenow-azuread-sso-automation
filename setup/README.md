@@ -1,3 +1,4 @@
+
 # Setup: Azure DevOps & Secure Infrastructure Bootstrap
 
 This directory contains Terraform code and scripts to bootstrap all required Azure DevOps and Azure resources for the ServiceNow Azure AD SSO Automation project.
@@ -9,9 +10,9 @@ For overall architecture, design decisions, and security rationale, see the [roo
 - Azure Key Vault for secrets (referenced by pipelines)
 - Azure Storage Account for Terraform state (CMK-encrypted)
 - Private networking for all resources
-- Self-hosted Azure DevOps agent pool (VMSS-based)
 
 > **Note:** Terraform modules are now managed in a separate repository (e.g., `terraform-azure-modules`).
+
 
 ## Setup Instructions
 
@@ -28,10 +29,6 @@ storage_account_name      = "yourtfstateacct"
 vnet_name                 = "your-vnet"
 vnet_address_space        = "10.0.0.0/16"
 subnet_address_prefix     = "10.0.1.0/24"
-agent_vmss_name           = "your-agent-vmss"
-agent_admin_username      = "azureuser"
-agent_admin_password      = "<secure-password>"
-agent_pool_name           = "your-agent-pool"
 tenant_id                 = "<your-tenant-id>"
 subscription_id           = "<your-subscription-id>"
 client_id                 = "<your-client-id>"
@@ -40,15 +37,16 @@ vending_machine_repo_name = "azure-vending-machine"
 modules_repo_name         = "terraform-azure-modules"
 ```
 
+
 - **Never commit your secrets to version control.**
 - The Azure DevOps PAT is **not** set in this file. It is handled securely as described below.
+
 
 ### 2. Generate and Store the Azure DevOps PAT
 - In Azure DevOps, go to User Settings > Personal Access Tokens and create a new PAT scoped to your organization, but limited to the specific project where automation will run. Grant only the following permissions:
   - **Project & Team (Read/Write)** (for the project)
   - **Service Connections (Read/Write)** (for the project)
   - **Variable Groups (Read/Write)** (for the project)
-  - **Agent Pools (Read/Write)** (for the project)
   - **Code (Read/Write)** (for the project, but restrict to only the repos that require write access; set to Read for repos that only need to be read)
 
   When configuring the PAT, select the project scope and, for the Code scope, specify Read/Write for the automated-deployment repo and Read for the modules repo. This ensures least-privilege access.
@@ -78,6 +76,7 @@ AZDO_PERSONAL_ACCESS_TOKEN="<your-pat-here>" ./bootstrap_setup.sh -var-file=setu
 
 ---
 
+
 ## Devcontainer: Automatic Azure DevOps PAT Loading
 
 When using the devcontainer, the `AZDO_PERSONAL_ACCESS_TOKEN` environment variable is automatically set at container startup by reading the secret from Azure Key Vault. The script `setup/set_azdo_pat_env.sh` will:
@@ -89,6 +88,7 @@ If the Key Vault name is not found, the script will fail with a clear error mess
 
 This ensures all automation and scripts in the devcontainer have secure, up-to-date access to the Azure DevOps PAT without manual intervention.
 
+
 ## ITSM Integration: Sending Requests
 
 This solution abstracts ITSM integration (e.g., ServiceNow) for flexibility. To configure your ITSM tool to send requests:
@@ -96,6 +96,7 @@ This solution abstracts ITSM integration (e.g., ServiceNow) for flexibility. To 
 - Update or replace the integration script or pipeline step to match your ITSM system's API and authentication.
 - Example request payloads and scripts are provided in the `scripts/` directory.
 - For more details, see the main project README and comments in the ITSM integration code.
+
 
 ## Next Steps
 - Review Terraform outputs for resource details and next steps (e.g., agent registration, manual approvals).

@@ -29,47 +29,32 @@ This project automates the creation and management of Azure AD Single Sign-On (S
 
 ## Design Decisions & Architecture
 
-- **App-Centric Request Structure:**
   - All requests are stored under `requests/<app_name>/<ticket>-<action>/`.
   - Each request (create, update, decommission) is tracked with its own ServiceNow ticket and action type.
   - Git history provides a full audit trail for each app's lifecycle.
-- **Immutable Requests:**
   - Requests are never deleted unless the app is decommissioned and resources are destroyed.
   - Decommissioning is explicit and tracked.
-- **Script-Driven CRUD:**
   - Scripts in `scripts/` provide Create, Read, Update, and Decommission operations for requests.
   - All changes are made via scripts for consistency and safety.
-- **Pipeline-Driven Automation:**
   - Azure DevOps pipelines process requests, apply Terraform, verify resource creation, and update ServiceNow tickets.
   - Pipelines are designed for idempotency and auditability.
-- **Manual or Automated Triggers:**
   - Requests can be created/managed manually or automated via ServiceNow webhooks and pipeline triggers.
 
 ## Handling Secrets & Secure Service Connections
 
-- **Azure DevOps Pipeline Secrets:**
   - All secrets (ServiceNow credentials, Azure credentials, etc.) are stored as secure pipeline variables or in Azure Key Vault.
   - Never commit secrets to the repo or pipeline YAML.
   - Reference secrets in the pipeline using `$(secret_name)` syntax.
-- **Azure Service Connection:**
   - Use a Service Principal with least-privilege permissions for Azure AD and resource management.
   - Store the Service Principal credentials in Azure DevOps as a Service Connection (type: Azure Resource Manager or Azure AD, as needed).
   - Restrict access to the Service Connection to only the required pipelines and users.
-- **ServiceNow Credentials:**
   - Store ServiceNow API credentials as secure pipeline variables or in Key Vault.
   - Rotate credentials regularly and audit usage.
-- **Terraform State:**
   - Use remote state (e.g., Azure Storage, Terraform Cloud) for production to avoid state drift and enable collaboration.
   - Secure state storage with RBAC and encryption.
 
 ## Azure DevOps PAT Management and Usage
 
-- The Azure DevOps Personal Access Token (PAT) is stored in Azure Key Vault as the secret `azdo-pat`.
-- On the very first run, you must provide the PAT as an environment variable (e.g., `TF_VAR_azdo_pat`). Terraform will write it to Key Vault.
-- On all subsequent runs, the provider reads the PAT directly from Key Vault, so any rotation or update is automatically used for all future changes.
-- The PAT is also exposed to Azure DevOps pipelines as the environment variable `TF_VAR_azdo_pat` via the variable group, enabling secure use in scripts and automation.
-- To bootstrap: run Terraform with `TF_VAR_azdo_pat` set, which will store the PAT in Key Vault. After that, you do not need to set the variable again.
-- For PAT rotation, update the Key Vault secret and re-run Terraform or pipelines as needed.
 
 ## Project Structure
 
@@ -121,9 +106,6 @@ module "app_sso" {
 }
 ```
 
-- Update all request templates to use the relative path to the checked-out modules directory.
-- Remove the local `terraform/modules/` directory from this repo.
-- Reference the modules repo and version in your pipeline YAML.
 
 ## Workflow Overview
 
@@ -164,16 +146,8 @@ module "app_sso" {
 
 ## Security Best Practices
 
-- Never store secrets in code or plain YAML.
-- Use least-privilege for all service principals and connections.
-- Audit and rotate credentials regularly.
-- Use remote state with encryption and RBAC.
-- Review all scripts and pipelines for security and test coverage.
 
 ## Requirements
-- Azure DevOps with pipeline permissions
-- ServiceNow instance and API credentials
-- Terraform (installed via devcontainer)
 
 ## Contributing
 Contributions are welcome! Please submit a pull request or open an issue for any enhancements or bug fixes.
@@ -182,20 +156,10 @@ Contributions are welcome! Please submit a pull request or open an issue for any
 This project is licensed under the MIT License. See the LICENSE file for details.
 
 ## References
-- [Terraform Azure Provider Documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)
-- [Terraform Azure DevOps Provider](https://registry.terraform.io/providers/microsoft/azuredevops/latest/docs)
-- [Azure Key Vault Security Best Practices](https://learn.microsoft.com/en-us/azure/key-vault/general/best-practices)
-- [Azure Storage Account Encryption](https://learn.microsoft.com/en-us/azure/storage/common/storage-service-encryption)
-- [Azure DevOps Agent Pools](https://learn.microsoft.com/en-us/azure/devops/pipelines/agents/pools-queues)
-- [Microsoft Cloud Adoption Framework - Security](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/security/)
 
 ## Private Endpoints for Key Vault and Storage Account
 
 This configuration uses private endpoints for both the Azure Key Vault and the Storage Account, ensuring all access is via the private subnet in the VNet. The networking resources (VNet and subnet) are created before any resources that depend on them, such as private endpoints, Key Vault, and Storage Account. This ordering ensures successful deployment and secure, private connectivity.
-
-- The Key Vault and Storage Account both have private endpoints in the same subnet.
-- No explicit Terraform dependencies are required; resource order and references ensure correct creation.
-- See the main.tf for resource grouping and comments.
 
 ## Devcontainer: Automatic Azure DevOps PAT Loading
 

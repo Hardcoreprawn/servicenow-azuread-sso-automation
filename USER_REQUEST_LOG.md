@@ -1,3 +1,4 @@
+
 # User Request Log
 
 This file records all user requests and actions taken by GitHub Copilot for persistent context and traceability.
@@ -91,5 +92,15 @@ This file records all user requests and actions taken by GitHub Copilot for pers
 - Design decision: Always prefer tfvars for vault name, fallback to env, and fail with clear error if not set.
 
 ---
+
+
+---
+
+## [2025-07-15] Migration to Microsoft-hosted Azure DevOps Agents
+
+- Removed all Terraform resources, variables, and documentation related to self-hosted agents (VMSS, admin password, UAMI for DevOps).
+- Updated all pipeline and infrastructure code to use only Microsoft-hosted agents.
+- Updated documentation and architecture diagrams to reflect this simplification.
+- Rationale: Reduce operational complexity, cost, and maintenance overhead. Align with best practices for small/medium projects.
 
 Future requests and actions will be appended here chronologically.

@@ -88,11 +88,6 @@ resource "azurerm_role_assignment" "bootstrap_kv_crypto_officer" {
   role_definition_name = "Key Vault Crypto Officer"
   principal_id         = data.azurerm_client_config.current.object_id
 }
-resource "azurerm_role_assignment" "uami_keyvault" {
-  scope                = azurerm_key_vault.main.id
-  role_definition_name = "Key Vault Secrets User"
-  principal_id         = azurerm_user_assigned_identity.devops.principal_id
-}
 resource "azurerm_role_assignment" "storage_cmk_kv_crypto_officer" {
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Crypto Officer"
@@ -127,6 +122,7 @@ resource "azurerm_storage_account" "tfstate" {
     user_assigned_identity_id = azurerm_user_assigned_identity.storage_cmk.id
   }
 }
+
 resource "azurerm_private_endpoint" "tfstate" {
   name                = "tfstate-pe"
   location            = azurerm_resource_group.main.location
@@ -138,65 +134,6 @@ resource "azurerm_private_endpoint" "tfstate" {
     is_manual_connection           = false
     subresource_names              = ["blob"]
   }
-}
-resource "azurerm_role_assignment" "uami_storage" {
-  scope                = azurerm_storage_account.tfstate.id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = azurerm_user_assigned_identity.devops.principal_id
-}
-
-# -----------------------------------------------------------------------------
-# 4. VMSS, admin password, UAMI for DevOps
-# -----------------------------------------------------------------------------
-resource "random_password" "agent_admin" {
-  length  = 24
-  special = true
-}
-resource "azurerm_key_vault_secret" "agent_admin_password" {
-  name         = "agent-admin-password"
-  value        = random_password.agent_admin.result
-  key_vault_id = azurerm_key_vault.main.id
-}
-resource "azurerm_linux_virtual_machine_scale_set" "agentpool" {
-  name                            = var.agent_vmss_name
-  resource_group_name             = azurerm_resource_group.main.name
-  location                        = azurerm_resource_group.main.location
-  sku                             = "Standard_DS2_v2"
-  instances                       = 1
-  admin_username                  = var.agent_admin_username
-  admin_password                  = random_password.agent_admin.result
-  disable_password_authentication = false
-  source_image_reference {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts"
-    version   = "latest"
-  }
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
-  }
-  network_interface {
-    name    = "agent-nic"
-    primary = true
-    ip_configuration {
-      name      = "internal"
-      subnet_id = azurerm_subnet.private.id
-      primary   = true
-    }
-  }
-  custom_data = base64encode(templatefile("${path.module}/cloud-init-azdo-agents.yaml", {
-    azdo_url     = var.azdo_org_service_url
-    azdo_pat     = azurerm_key_vault_secret.azdo_pat.value
-    agent_pool   = var.agent_pool_name
-    agent_count  = var.agent_count
-    agent_prefix = var.agent_vmss_name
-  }))
-}
-resource "azurerm_user_assigned_identity" "devops" {
-  name                = "devops-uami"
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
 }
 
 # -----------------------------------------------------------------------------
